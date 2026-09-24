@@ -1,0 +1,31 @@
+name: Autonomous Audiobook Production
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 23 * * *'
+concurrency:
+  group: audiobook-production
+  cancel-in-progress: false
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Run production pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+        run: python -m src.main
