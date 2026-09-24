@@ -1,0 +1,48 @@
+{
+  "timezone": "Asia/Karachi",
+  "daily_run_time": "04:00",
+  "script_minutes_min": 60,
+  "script_minutes_max": 90,
+  "retry_count": 10,
+  "retry_delay_min": 10,
+  "retry_delay_max": 15,
+  "youtube_privacy": "public",
+  "video_resolution": "1280x720",
+  "video_fps": 24,
+  "narration_volume": 1.0,
+  "music_volume": 0.08,
+  "allow_provider_switch_within_book": true,
+  "cover": {
+    "enabled": true,
+    "x": 40,
+    "y": 40,
+    "width": 260,
+    "height": -1
+  },
+  "thumbnail": {
+    "cover_x": 60,
+    "cover_y": 60,
+    "cover_width": 500,
+    "cover_height": -1,
+    "hook_x": 600,
+    "hook_y": 250,
+    "hook_width": 650,
+    "hook_font_size": 58
+  },
+  "archive_success_files": false,
+  "keep_failed_large_files": false,
+  "require_music": false,
+  "disk_free_min_gb": 3,
+  "video_library": {
+    "drive_path": "VIDEO_LIBRARY",
+    "random_folder": true,
+    "random_clip_order": true,
+    "allow_clip_duplication": true
+  },
+  "input_assets": {
+    "drive_path": "INPUT_ASSETS",
+    "covers_folder": "covers",
+    "music_folder": "music",
+    "thumbnail_folder": "thumbnail"
+  }
+}

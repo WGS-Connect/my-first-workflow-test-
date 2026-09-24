@@ -1,0 +1,20 @@
+{
+  "primary_provider": "edge_tts",
+  "language": "en-US",
+  "speed": 1.0,
+  "pitch": 0,
+  "volume": 1.0,
+  "style": "professional audiobook",
+  "emotion": "calm",
+  "edge_tts": {
+    "enabled": true,
+    "voice": "en-US-AndrewNeural",
+    "rate": "+0%",
+    "pitch": "+0Hz"
+  },
+  "kokoro": {
+    "enabled": true,
+    "voice": "CONFIGURED_KOKORO_VOICE",
+    "speed": 1.0
+  }
+}
