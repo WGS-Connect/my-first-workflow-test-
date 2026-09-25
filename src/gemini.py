@@ -11,12 +11,22 @@ class Gemini:
     """
     Gemini client used by the audiobook pipeline.
 
-    Responsibilities:
-    - Send text prompts to Gemini.
-    - Support model fallback configured in config.json.
-    - Return plain text.
-    - Parse Gemini JSON responses safely.
-    - Leave retry/backoff behavior to the existing Retry object.
+    Model order:
+
+    1. llm.gemini_primary
+    2. llm.gemini_fallbacks
+
+    Example config:
+
+    "llm": {
+        "gemini_primary": "gemini-3.5-flash",
+        "gemini_fallbacks": [
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite"
+        ]
+    }
+
+    Retry/backoff is handled by the existing Retry object.
     """
 
     def __init__(
@@ -42,34 +52,108 @@ class Gemini:
     # ---------------------------------------------------------
 
     def _models_for(self, purpose: str) -> list[str]:
+        """
+        Return Gemini models in primary -> fallback order.
 
-        models = self.config.get(
+        Preferred configuration:
+
+        "llm": {
+            "gemini_primary": "...",
+            "gemini_fallbacks": ["...", "..."]
+        }
+
+        Backward compatibility is retained for the older
+        "models" configuration.
+        """
+
+        # -----------------------------------------------------
+        # NEW CONFIGURATION
+        # -----------------------------------------------------
+
+        llm = self.config.get("llm", {})
+
+        if isinstance(llm, dict):
+
+            primary = llm.get(
+                "gemini_primary"
+            )
+
+            fallbacks = llm.get(
+                "gemini_fallbacks",
+                []
+            )
+
+            models: list[str] = []
+
+            if primary:
+                models.append(
+                    str(primary).strip()
+                )
+
+            if isinstance(
+                fallbacks,
+                list
+            ):
+                for model in fallbacks:
+
+                    model = str(
+                        model
+                    ).strip()
+
+                    if model and model not in models:
+                        models.append(model)
+
+            if models:
+                return models
+
+        # -----------------------------------------------------
+        # OLD CONFIGURATION
+        # -----------------------------------------------------
+
+        models_config = self.config.get(
             "models",
             {}
         )
 
-        selected = models.get(
-            purpose
-        )
-
-        if not selected:
-            selected = models.get(
-                "script"
-            )
-
-        if not selected:
-            raise ValueError(
-                f"No Gemini model configured for purpose: "
-                f"{purpose}"
-            )
-
         if isinstance(
-            selected,
-            str
+            models_config,
+            dict
         ):
-            return [selected]
 
-        return list(selected)
+            selected = models_config.get(
+                purpose
+            )
+
+            if not selected:
+                selected = models_config.get(
+                    "script"
+                )
+
+            if selected:
+
+                if isinstance(
+                    selected,
+                    str
+                ):
+                    return [
+                        selected
+                    ]
+
+                if isinstance(
+                    selected,
+                    list
+                ):
+                    return [
+                        str(model).strip()
+                        for model in selected
+                        if str(model).strip()
+                    ]
+
+        raise ValueError(
+            "No Gemini models configured. "
+            "Add llm.gemini_primary and "
+            "llm.gemini_fallbacks to config.json."
+        )
 
     # ---------------------------------------------------------
     # TEXT GENERATION
@@ -124,6 +208,9 @@ class Gemini:
             except Exception as exc:
 
                 last_error = exc
+
+                # Continue to the next Gemini model.
+                continue
 
         if last_error:
             raise last_error
@@ -187,7 +274,7 @@ class Gemini:
 
         text = text.strip()
 
-        # Remove Markdown code fences.
+        # Remove Markdown JSON code fence.
         text = re.sub(
             r"^```json\s*",
             "",
@@ -195,6 +282,7 @@ class Gemini:
             flags=re.IGNORECASE
         )
 
+        # Remove generic Markdown code fence.
         text = re.sub(
             r"^```\s*",
             "",
@@ -209,8 +297,8 @@ class Gemini:
 
         text = text.strip()
 
-        # If Gemini added explanatory text before/after
-        # the JSON, extract the outermost JSON object.
+        # Extract JSON object if Gemini added
+        # explanatory text around it.
         if not (
             text.startswith("{")
             and text.endswith("}")
