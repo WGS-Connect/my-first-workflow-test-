@@ -1,96 +1,33 @@
-from __future__ import annotations
+```json
+{
+  "timezone": "Asia/Karachi",
+  "daily_limit": 1,
+  "chapters": 12,
+  "target_chapter_minutes": 75,
+  "language": "en-US",
 
-import json
-import os
-from pathlib import Path
+  "narration": {
+    "speed": 1.0,
+    "pitch": 0
+  },
 
+  "video": {
+    "enabled": true,
+    "resolution": "1920x1080",
+    "fps": 30
+  },
 
-ROOT = Path(__file__).resolve().parents[1]
+  "music": {
+    "enabled": true,
+    "volume": 0.08
+  },
 
-
-def load_json(name, default=None):
-    path = ROOT / name
-
-    if not path.exists():
-        return {} if default is None else default
-
-    text = path.read_text(
-        encoding="utf-8"
-    ).strip()
-
-    if not text:
-        return {} if default is None else default
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {} if default is None else default
-
-
-CONFIG = load_json(
-    "config.json",
-    {}
-)
-
-
-VOICE = load_json(
-    "voice.json",
-    {}
-)
-
-
-def secret_config():
-    """
-    Read secrets from GitHub Actions environment variables.
-
-    Google Drive now uses OAuth user credentials.
-    """
-
-    drive_oauth = os.environ.get(
-        "GOOGLE_DRIVE_OAUTH_JSON",
-        ""
-    ).strip()
-
-    # Backward compatibility:
-    # allow the old variable temporarily if the new
-    # OAuth secret has not been configured.
-    if not drive_oauth:
-        drive_oauth = os.environ.get(
-            "GOOGLE_DRIVE_CREDENTIALS",
-            ""
-        ).strip()
-
-    if not drive_oauth:
-        raise RuntimeError(
-            "GOOGLE_DRIVE_OAUTH_JSON GitHub Secret "
-            "is missing."
-        )
-
-    return {
-        "google_drive_credentials": drive_oauth,
-
-        "gemini_api_key": os.environ.get(
-            "GEMINI_API_KEY",
-            ""
-        ).strip(),
-
-        "youtube_client_id": os.environ.get(
-            "YOUTUBE_CLIENT_ID",
-            ""
-        ).strip(),
-
-        "youtube_client_secret": os.environ.get(
-            "YOUTUBE_CLIENT_SECRET",
-            ""
-        ).strip(),
-
-        "youtube_refresh_token": os.environ.get(
-            "YOUTUBE_REFRESH_TOKEN",
-            ""
-        ).strip(),
-    }
-
-
-# Keep these names available to the rest of
-# the existing application.
-SECRETS = secret_config()
+  "cover": {
+    "enabled": true,
+    "width": 500,
+    "height": 700,
+    "x": 40,
+    "y": 40
+  }
+}
+```
