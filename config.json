@@ -1,5 +1,6 @@
 {
   "timezone": "Asia/Karachi",
+  "retry_count": 3
   "daily_limit": 1,
   "chapters": 12,
   "target_chapter_minutes": 75,
