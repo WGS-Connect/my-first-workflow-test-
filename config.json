@@ -6,12 +6,15 @@
   "daily_limit": 1,
   "chapters": 12,
   "target_chapter_minutes": 75,
+  "script_minutes_min": 60,
+  "script_minutes_max": 90,
+  "words_per_minute_min": 130,
+  "words_per_minute_max": 160,
   "language": "en-US",
   "video_resolution": "1920x1080",
   "video_fps": 30,
   "narration_volume": 1.0,
   "music_volume": 0.08,
-
   "llm": {
     "gemini_primary": "gemini-3.5-flash",
     "gemini_fallbacks": [
@@ -22,9 +25,8 @@
     "groq_fallbacks": [
       "openai/gpt-oss-20b"
     ],
-    "post_script_openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free"
+    "post_script_openrouter": "nvidia/nemotron-3-ultra-550b-a55a-a55b:free"
   },
-
   "cover": {
     "enabled": true,
     "width": 500,
