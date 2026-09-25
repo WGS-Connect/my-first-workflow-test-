@@ -5,7 +5,6 @@ import logging
 import random
 import re
 import shutil
-import threading
 import time
 
 from datetime import datetime, timezone
@@ -42,28 +41,12 @@ log = logging.getLogger("audiobook")
 
 
 # ============================================================
-# GEMINI DEFAULT MODELS
+# GEMINI MODEL CONFIGURATION
 # ============================================================
 #
-# The repository config may not contain a "models" section.
-# Add safe defaults here so the system does not crash simply
-# because that section is absent.
-#
-# If config.json later contains its own models section,
-# those values are used instead.
+# Gemini model selection is read from config.json by src/gemini.py.
+# Do not inject legacy gemini-2.5-flash defaults here.
 # ============================================================
-
-CONFIG.setdefault(
-    "models",
-    {
-        "script": [
-            "gemini-2.5-flash"
-        ],
-        "metadata": [
-            "gemini-2.5-flash"
-        ]
-    }
-)
 
 
 # ============================================================
@@ -250,58 +233,27 @@ class Heartbeat:
         state,
         interval=15
     ):
-
         self.local_state = local_state
         self.drive = drive
         self.state = state
         self.interval = interval
-
-        self.stop_event = (
-            threading.Event()
-        )
-
-        self.thread = threading.Thread(
-            target=self._run,
-            daemon=True
-        )
+        self.stop_event = None
 
     def start(self):
-        self.thread.start()
-
-    def stop(self):
-
-        self.stop_event.set()
-
-        self.thread.join(
-            timeout=2
+        # The previous implementation wrote to Google Drive from a
+        # background thread while the main pipeline was also using the
+        # same Google Drive client. That concurrent use can cause native
+        # crashes (exit code 139 / segmentation fault).
+        #
+        # Heartbeat is intentionally disabled for stability. The main
+        # pipeline continues to save checkpoints synchronously.
+        log.info(
+            "Heartbeat background thread disabled for stability."
         )
 
-    def _run(self):
-
-        while not self.stop_event.wait(
-            self.interval
-        ):
-
-            try:
-
-                self.state[
-                    "heartbeat_at"
-                ] = datetime.now(
-                    timezone.utc
-                ).isoformat()
-
-                save(
-                    self.local_state,
-                    self.drive,
-                    self.state
-                )
-
-            except Exception as exc:
-
-                log.warning(
-                    "Heartbeat checkpoint failed: %s",
-                    exc
-                )
+    def stop(self):
+        # Kept for compatibility with the existing main() finally block.
+        return
 
 
 # ============================================================
