@@ -3,18 +3,27 @@
   "retry_count": 3,
   "retry_delay_min": 10,
   "retry_delay_max": 30,
-
   "daily_limit": 1,
   "chapters": 12,
   "target_chapter_minutes": 75,
-
   "language": "en-US",
-
   "video_resolution": "1920x1080",
   "video_fps": 30,
-
   "narration_volume": 1.0,
   "music_volume": 0.08,
+
+  "llm": {
+    "gemini_primary": "gemini-3.5-flash",
+    "gemini_fallbacks": [
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite"
+    ],
+    "groq_primary": "openai/gpt-oss-120b",
+    "groq_fallbacks": [
+      "openai/gpt-oss-20b"
+    ],
+    "post_script_openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free"
+  },
 
   "cover": {
     "enabled": true,
@@ -22,21 +31,5 @@
     "height": 500,
     "x": 40,
     "y": 40
-  },
-
-  "llm": {
-    "gemini_models": [
-      "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
-      "gemini-3.1-flash-lite"
-    ],
-    "groq_models": [
-      "openai/gpt-oss-120b",
-      "openai/gpt-oss-20b"
-    ],
-    "openrouter_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "max_retries": 3,
-    "retry_base_seconds": 15,
-    "request_timeout": 180
   }
 }
