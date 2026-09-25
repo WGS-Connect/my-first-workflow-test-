@@ -1,4 +1,3 @@
-```python
 from __future__ import annotations
 
 import json
@@ -632,4 +631,3 @@ def book_complete(
             )
         )
     )
-```
