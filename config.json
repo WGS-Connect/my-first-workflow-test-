@@ -1,31 +1,18 @@
 {
   "timezone": "Asia/Karachi",
-  "retry_count": 3
+  "retry_count": 3,
   "daily_limit": 1,
   "chapters": 12,
   "target_chapter_minutes": 75,
   "language": "en-US",
-
-  "narration": {
-    "speed": 1.0,
-    "pitch": 0
-  },
-
-  "video": {
-    "enabled": true,
-    "resolution": "1920x1080",
-    "fps": 30
-  },
-
-  "music": {
-    "enabled": true,
-    "volume": 0.08
-  },
-
+  "video_resolution": "1920x1080",
+  "video_fps": 30,
+  "narration_volume": 1.0,
+  "music_volume": 0.08,
   "cover": {
     "enabled": true,
     "width": 500,
-    "height": 700,
+    "height": 500,
     "x": 40,
     "y": 40
   }
