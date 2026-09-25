@@ -1,571 +1,306 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
 
-# ============================================================
-# ROOT
-# ============================================================
-
-ROOT = Path(
-    os.environ.get(
-        "AUDIOBOOK_ROOT",
-        Path(__file__).resolve().parents[1]
-    )
-)
+log = logging.getLogger("audiobook.config")
 
 
 # ============================================================
-# LOAD JSON HELPER
+# PROJECT ROOT
 # ============================================================
 
-def _load_json(
-    path: Path,
-    default=None
-):
+ROOT = Path(__file__).resolve().parent.parent
+
+
+# ============================================================
+# JSON LOADER
+# ============================================================
+
+def load_json(name, default=None):
+    path = ROOT / name
 
     if not path.exists():
-        return default
+        log.warning(
+            "Configuration file not found: %s",
+            path
+        )
+        return default if default is not None else {}
 
     try:
-
-        return json.loads(
-            path.read_text(
-                encoding="utf-8"
-            )
-        )
+        raw = path.read_text(
+            encoding="utf-8"
+        ).strip()
 
     except Exception as exc:
-
         raise RuntimeError(
-            f"Invalid JSON file: {path}\n"
-            f"{exc}"
+            f"Unable to read configuration file: {path}"
         ) from exc
 
+    # Empty config is treated as an empty object.
+    if not raw:
+        log.warning(
+            "Configuration file is empty: %s",
+            path
+        )
+        return default if default is not None else {}
+
+    try:
+        data = json.loads(raw)
+
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Invalid JSON in {path} "
+            f"at line {exc.lineno}, column {exc.colno}: "
+            f"{exc.msg}"
+        ) from exc
+
+    if data is None:
+        return default if default is not None else {}
+
+    if not isinstance(data, dict):
+        raise RuntimeError(
+            f"{path} must contain a JSON object."
+        )
+
+    return data
+
 
 # ============================================================
-# MAIN CONFIG
+# DEFAULT CONFIGURATION
 # ============================================================
 
-CONFIG_PATH = (
-    ROOT
-    / "config.json"
-)
+DEFAULT_CONFIG = {
+    "video_resolution": "1280x720",
+    "video_fps": 24,
 
-CONFIG = _load_json(
-    CONFIG_PATH,
+    "video_preset": "veryfast",
+    "video_crf": 23,
+
+    "audio_bitrate": "192k",
+
+    "narration_volume": 1.0,
+    "music_volume": 0.08,
+
+    "cover": {
+        "enabled": True,
+        "width": 260,
+        "height": -1,
+        "x": 40,
+        "y": 40
+    },
+
+    "tts": {
+        "provider": "edge_tts"
+    },
+
+    "language": "en-US",
+
+    "speed": 1.0,
+    "pitch": 0,
+
+    "edge_tts": {
+        "voice": "en-US-GuyNeural"
+    },
+
+    "kokoro": {
+        "voice": "af_heart",
+        "speed": 1.0
+    }
+}
+
+
+# ============================================================
+# LOAD USER CONFIGURATION
+# ============================================================
+
+_loaded_config = load_json(
+    "config.json",
     {}
 )
 
-if not isinstance(
-    CONFIG,
-    dict
+
+# Merge top-level defaults without destroying
+# user-supplied configuration.
+
+CONFIG = dict(
+    DEFAULT_CONFIG
+)
+
+CONFIG.update(
+    _loaded_config
+)
+
+
+# Preserve nested defaults when the user provides
+# only some nested values.
+
+for section in (
+    "cover",
+    "tts",
+    "edge_tts",
+    "kokoro"
 ):
 
-    raise RuntimeError(
-        "config.json must contain a JSON object."
+    default_section = (
+        DEFAULT_CONFIG.get(
+            section,
+            {}
+        )
     )
 
+    user_section = (
+        _loaded_config.get(
+            section,
+            {}
+        )
+    )
 
-# ============================================================
-# DEFAULTS
-# ============================================================
+    if (
+        isinstance(
+            default_section,
+            dict
+        )
+        and isinstance(
+            user_section,
+            dict
+        )
+    ):
 
-CONFIG.setdefault(
-    "timezone",
-    "Asia/Karachi"
-)
+        merged = dict(
+            default_section
+        )
 
-CONFIG.setdefault(
-    "daily_run_time",
-    "04:00"
-)
+        merged.update(
+            user_section
+        )
 
-CONFIG.setdefault(
-    "script_minutes_min",
-    60
-)
-
-CONFIG.setdefault(
-    "script_minutes_max",
-    90
-)
-
-CONFIG.setdefault(
-    "words_per_minute_min",
-    120
-)
-
-CONFIG.setdefault(
-    "words_per_minute_max",
-    150
-)
-
-CONFIG.setdefault(
-    "chapter_count",
-    12
-)
-
-CONFIG.setdefault(
-    "retry_count",
-    10
-)
-
-CONFIG.setdefault(
-    "retry_delay_min",
-    10
-)
-
-CONFIG.setdefault(
-    "retry_delay_max",
-    15
-)
-
-CONFIG.setdefault(
-    "youtube_privacy",
-    "public"
-)
-
-CONFIG.setdefault(
-    "disk_free_min_gb",
-    3
-)
-
-CONFIG.setdefault(
-    "allow_provider_switch_within_book",
-    True
-)
-
-
-# ============================================================
-# MODEL CONFIGURATION
-# ============================================================
-
-CONFIG.setdefault(
-    "models",
-    {
-        "script": [
-            "gemini-2.5-flash"
-        ],
-        "metadata": [
-            "gemini-2.5-flash"
-        ]
-    }
-)
-
-
-# ============================================================
-# VIDEO CONFIGURATION
-# ============================================================
-
-CONFIG.setdefault(
-    "video_resolution",
-    "1280x720"
-)
-
-CONFIG.setdefault(
-    "video_fps",
-    24
-)
-
-
-# ============================================================
-# AUDIO CONFIGURATION
-# ============================================================
-
-CONFIG.setdefault(
-    "narration_volume",
-    1.0
-)
-
-CONFIG.setdefault(
-    "music_volume",
-    0.08
-)
-
-
-# ============================================================
-# COVER CONFIGURATION
-# ============================================================
-
-CONFIG.setdefault(
-    "cover",
-    {
-        "enabled": True,
-        "x": 40,
-        "y": 40,
-        "width": 260,
-        "height": -1
-    }
-)
-
-
-# ============================================================
-# THUMBNAIL CONFIGURATION
-# ============================================================
-
-CONFIG.setdefault(
-    "thumbnail",
-    {
-        "cover_x": 60,
-        "cover_y": 60,
-        "cover_width": 500,
-        "cover_height": -1,
-        "hook_x": 600,
-        "hook_y": 250,
-        "hook_width": 650,
-        "hook_font_size": 58
-    }
-)
-
-
-# ============================================================
-# CLEANUP
-# ============================================================
-
-CONFIG.setdefault(
-    "archive_success_files",
-    False
-)
-
-CONFIG.setdefault(
-    "keep_failed_large_files",
-    False
-)
-
-CONFIG.setdefault(
-    "require_music",
-    False
-)
-
-
-# ============================================================
-# VIDEO LIBRARY
-# ============================================================
-
-CONFIG.setdefault(
-    "video_library",
-    {
-        "drive_path": "VIDEO_LIBRARY",
-        "random_folder": True,
-        "random_clip_order": True,
-        "allow_clip_duplication": True
-    }
-)
-
-
-# ============================================================
-# INPUT ASSETS
-# ============================================================
-
-CONFIG.setdefault(
-    "input_assets",
-    {
-        "drive_path": "INPUT_ASSETS",
-        "covers_folder": "covers",
-        "music_folder": "music",
-        "thumbnail_folder": "thumbnail"
-    }
-)
+        CONFIG[section] = merged
 
 
 # ============================================================
 # VOICE CONFIGURATION
 # ============================================================
 
-VOICE_PATH = (
-    ROOT
-    / "voice.json"
+VOICE = dict(
+    CONFIG
 )
 
-VOICE = _load_json(
-    VOICE_PATH,
-    {}
+
+# Some parts of the application expect these
+# voice settings at the top level.
+
+VOICE["speed"] = float(
+    CONFIG.get(
+        "speed",
+        1.0
+    )
 )
 
-if not isinstance(
-    VOICE,
-    dict
-):
+VOICE["pitch"] = float(
+    CONFIG.get(
+        "pitch",
+        0
+    )
+)
 
-    raise RuntimeError(
-        "voice.json must contain a JSON object."
+VOICE["language"] = CONFIG.get(
+    "language",
+    "en-US"
+)
+
+VOICE["edge_tts"] = dict(
+    CONFIG.get(
+        "edge_tts",
+        {}
+    )
+)
+
+VOICE["kokoro"] = dict(
+    CONFIG.get(
+        "kokoro",
+        {}
+    )
+)
+
+
+# ============================================================
+# ENVIRONMENT / SECRETS
+# ============================================================
+
+def _env(name):
+    value = os.getenv(
+        name
     )
 
+    if value is None:
+        return ""
 
-# ============================================================
-# VOICE DEFAULTS
-# ============================================================
+    return value.strip()
 
-VOICE.setdefault(
-    "provider",
-    "edge"
-)
-
-VOICE.setdefault(
-    "fallback",
-    "kokoro"
-)
-
-VOICE.setdefault(
-    "speed",
-    1.0
-)
-
-VOICE.setdefault(
-    "pitch",
-    0
-)
-
-
-# ============================================================
-# ENVIRONMENT VARIABLE HELPER
-# ============================================================
-
-def _env(
-    *names,
-    required=False
-):
-
-    for name in names:
-
-        value = os.environ.get(
-            name
-        )
-
-        if value is not None:
-
-            value = value.strip()
-
-            if value:
-                return value
-
-    if required:
-
-        raise RuntimeError(
-            "Missing required GitHub Secret/environment "
-            f"variable. Tried: {', '.join(names)}"
-        )
-
-    return None
-
-
-# ============================================================
-# SECRETS
-# ============================================================
 
 def secret_config():
+    """
+    Return secrets supplied through GitHub Actions
+    environment variables.
 
-    # --------------------------------------------------------
-    # GEMINI
-    # --------------------------------------------------------
-
-    gemini_api_key = _env(
-        "GEMINI_API_KEY",
-        "GOOGLE_GEMINI_API_KEY",
-        "GOOGLE_API_KEY",
-        required=True
-    )
-
-    # --------------------------------------------------------
-    # YOUTUBE
-    # --------------------------------------------------------
-
-    youtube_client_id = _env(
-        "YOUTUBE_CLIENT_ID",
-        required=True
-    )
-
-    youtube_client_secret = _env(
-        "YOUTUBE_CLIENT_SECRET",
-        required=True
-    )
-
-    youtube_refresh_token = _env(
-        "YOUTUBE_REFRESH_TOKEN",
-        required=True
-    )
-
-    # --------------------------------------------------------
-    # GOOGLE DRIVE
-    #
-    # Supported formats:
-    #
-    # 1. GOOGLE_DRIVE_CREDENTIALS
-    #    Complete service-account JSON.
-    #
-    # 2. GOOGLE_DRIVE_CREDENTIALS_JSON
-    #    Same thing under another common name.
-    #
-    # 3. GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON
-    #
-    # The code also supports a mounted credentials file.
-    # --------------------------------------------------------
-
-    google_drive_credentials = _env(
-        "GOOGLE_DRIVE_CREDENTIALS",
-        "GOOGLE_DRIVE_CREDENTIALS_JSON",
-        "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON",
-        required=True
-    )
-
-    # --------------------------------------------------------
-    # OPTIONAL DRIVE ID
-    # --------------------------------------------------------
-
-    google_drive_folder_id = _env(
-        "GOOGLE_DRIVE_FOLDER_ID",
-        "DRIVE_FOLDER_ID"
-    )
-
-    # --------------------------------------------------------
-    # OPTIONAL YOUTUBE CHANNEL
-    # --------------------------------------------------------
-
-    youtube_channel_id = _env(
-        "YOUTUBE_CHANNEL_ID"
-    )
+    Secrets are intentionally NOT stored in config.json.
+    """
 
     return {
-        "gemini_api_key": gemini_api_key,
+        "GEMINI_API_KEY": _env(
+            "GEMINI_API_KEY"
+        ),
 
-        "youtube_client_id":
-            youtube_client_id,
+        "YOUTUBE_CLIENT_ID": _env(
+            "YOUTUBE_CLIENT_ID"
+        ),
 
-        "youtube_client_secret":
-            youtube_client_secret,
+        "YOUTUBE_CLIENT_SECRET": _env(
+            "YOUTUBE_CLIENT_SECRET"
+        ),
 
-        "youtube_refresh_token":
-            youtube_refresh_token,
+        "YOUTUBE_REFRESH_TOKEN": _env(
+            "YOUTUBE_REFRESH_TOKEN"
+        ),
 
-        "google_drive_credentials":
-            google_drive_credentials,
+        "GOOGLE_SERVICE_ACCOUNT_JSON": _env(
+            "GOOGLE_SERVICE_ACCOUNT_JSON"
+        ),
 
-        "google_drive_folder_id":
-            google_drive_folder_id,
-
-        "youtube_channel_id":
-            youtube_channel_id
+        "YOUTUBE_TOKEN_JSON_BOOKS": _env(
+            "YOUTUBE_TOKEN_JSON_BOOKS"
+        )
     }
 
 
 # ============================================================
-# VALIDATE CONFIGURATION
+# OPTIONAL DRIVE ROOT
 # ============================================================
 
-def validate_config():
-
-    if int(
-        CONFIG[
-            "chapter_count"
-        ]
-    ) != 12:
-
-        raise RuntimeError(
-            "chapter_count must be exactly 12."
-        )
-
-    if int(
-        CONFIG[
-            "script_minutes_min"
-        ]
-    ) <= 0:
-
-        raise RuntimeError(
-            "script_minutes_min must be greater than zero."
-        )
-
-    if int(
-        CONFIG[
-            "script_minutes_max"
-        ]
-    ) < int(
-        CONFIG[
-            "script_minutes_min"
-        ]
-    ):
-
-        raise RuntimeError(
-            "script_minutes_max cannot be less than "
-            "script_minutes_min."
-        )
-
-    if int(
-        CONFIG[
-            "words_per_minute_min"
-        ]
-    ) <= 0:
-
-        raise RuntimeError(
-            "words_per_minute_min must be greater than zero."
-        )
-
-    if int(
-        CONFIG[
-            "words_per_minute_max"
-        ]
-    ) < int(
-        CONFIG[
-            "words_per_minute_min"
-        ]
-    ):
-
-        raise RuntimeError(
-            "words_per_minute_max cannot be less than "
-            "words_per_minute_min."
-        )
-
-    if int(
-        CONFIG[
-            "retry_count"
-        ]
-    ) < 1:
-
-        raise RuntimeError(
-            "retry_count must be at least 1."
-        )
-
-    if float(
-        CONFIG[
-            "retry_delay_min"
-        ]
-    ) < 0:
-
-        raise RuntimeError(
-            "retry_delay_min cannot be negative."
-        )
-
-    if float(
-        CONFIG[
-            "retry_delay_max"
-        ]
-    ) < float(
-        CONFIG[
-            "retry_delay_min"
-        ]
-    ):
-
-        raise RuntimeError(
-            "retry_delay_max cannot be less than "
-            "retry_delay_min."
-        )
-
-    models = CONFIG.get(
-        "models",
-        {}
-    )
-
-    if not models.get(
-        "script"
-    ):
-
-        raise RuntimeError(
-            "At least one Gemini script model is required."
-        )
-
-    return True
+DRIVE_ROOT = CONFIG.get(
+    "drive_root",
+    "Audiobook"
+)
 
 
-validate_config()
+# ============================================================
+# STARTUP INFORMATION
+# ============================================================
+
+log.info(
+    "Configuration loaded successfully."
+)
+
+log.info(
+    "Project root: %s",
+    ROOT
+)
+
+log.info(
+    "Drive root: %s",
+    DRIVE_ROOT
+)
