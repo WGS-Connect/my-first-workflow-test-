@@ -2,24 +2,92 @@ from __future__ import annotations
 
 import json
 import re
-
+from typing import Any, Dict
 
 from google import genai
 
 
 class Gemini:
+    """
+    Gemini client used by the audiobook pipeline.
 
-    def __init__(self, key, retry, config, voice):
-        self.c = genai.Client(api_key=key)
+    Responsibilities:
+    - Send text prompts to Gemini.
+    - Support model fallback configured in config.json.
+    - Return plain text.
+    - Parse Gemini JSON responses safely.
+    - Leave retry/backoff behavior to the existing Retry object.
+    """
+
+    def __init__(
+        self,
+        key: str,
+        retry,
+        config: Dict[str, Any],
+        voice: Dict[str, Any] | None = None,
+    ):
+        if not key:
+            raise ValueError("Gemini API key is missing.")
+
+        self.client = genai.Client(
+            api_key=key
+        )
+
         self.retry = retry
         self.config = config
-        self.voice = voice
+        self.voice = voice or {}
 
-    def text(self, purpose, prompt):
+    # ---------------------------------------------------------
+    # MODEL SELECTION
+    # ---------------------------------------------------------
 
-        models = self.config["models"].get(
-            purpose,
-            self.config["models"]["script"]
+    def _models_for(self, purpose: str) -> list[str]:
+
+        models = self.config.get(
+            "models",
+            {}
+        )
+
+        selected = models.get(
+            purpose
+        )
+
+        if not selected:
+            selected = models.get(
+                "script"
+            )
+
+        if not selected:
+            raise ValueError(
+                f"No Gemini model configured for purpose: "
+                f"{purpose}"
+            )
+
+        if isinstance(
+            selected,
+            str
+        ):
+            return [selected]
+
+        return list(selected)
+
+    # ---------------------------------------------------------
+    # TEXT GENERATION
+    # ---------------------------------------------------------
+
+    def text(
+        self,
+        purpose: str,
+        prompt: str
+    ) -> str:
+
+        if not prompt or not prompt.strip():
+            raise ValueError(
+                "Gemini prompt is empty."
+            )
+
+        models = self._models_for(
+            purpose
         )
 
         last_error = None
@@ -28,31 +96,109 @@ class Gemini:
 
             try:
 
-                return self.retry(
-                    lambda: self.c.models.generate_content(
-                        model=model,
-                        contents=prompt
-                    ).text,
+                result = self.retry(
+                    lambda model=model: (
+                        self.client.models.generate_content(
+                            model=model,
+                            contents=prompt
+                        )
+                    ),
                     "gemini",
                     model=model
                 )
+
+                text = getattr(
+                    result,
+                    "text",
+                    None
+                )
+
+                if not text:
+                    raise RuntimeError(
+                        f"Gemini returned an empty response "
+                        f"using model {model}."
+                    )
+
+                return text.strip()
 
             except Exception as exc:
 
                 last_error = exc
 
-        raise last_error
+        if last_error:
+            raise last_error
 
-    def json(self, purpose, prompt):
+        raise RuntimeError(
+            "Gemini generation failed."
+        )
 
-        text = self.text(purpose, prompt).strip()
+    # ---------------------------------------------------------
+    # JSON GENERATION
+    # ---------------------------------------------------------
 
-        # Remove markdown JSON fences if Gemini adds them.
+    def json(
+        self,
+        purpose: str,
+        prompt: str
+    ) -> Dict[str, Any]:
+
+        raw = self.text(
+            purpose,
+            prompt
+        )
+
+        cleaned = self._clean_json(
+            raw
+        )
+
+        try:
+
+            value = json.loads(
+                cleaned
+            )
+
+        except json.JSONDecodeError as exc:
+
+            raise ValueError(
+                "Gemini returned invalid JSON.\n\n"
+                f"JSON error: {exc}\n\n"
+                f"Gemini response:\n{raw[:5000]}"
+            ) from exc
+
+        if not isinstance(
+            value,
+            dict
+        ):
+            raise ValueError(
+                "Gemini JSON response must be "
+                "a JSON object."
+            )
+
+        return value
+
+    # ---------------------------------------------------------
+    # JSON CLEANING
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def _clean_json(
+        text: str
+    ) -> str:
+
+        text = text.strip()
+
+        # Remove Markdown code fences.
         text = re.sub(
-            r"^```(?:json)?\s*",
+            r"^```json\s*",
             "",
             text,
             flags=re.IGNORECASE
+        )
+
+        text = re.sub(
+            r"^```\s*",
+            "",
+            text
         )
 
         text = re.sub(
@@ -61,29 +207,22 @@ class Gemini:
             text
         )
 
-        # Try normal JSON first.
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
+        text = text.strip()
 
-        # Fallback: extract first JSON object.
-        match = re.search(
-            r"\{.*\}",
-            text,
-            flags=re.DOTALL
-        )
+        # If Gemini added explanatory text before/after
+        # the JSON, extract the outermost JSON object.
+        if not (
+            text.startswith("{")
+            and text.endswith("}")
+        ):
 
-        if not match:
-            raise ValueError(
-                "Gemini did not return valid JSON."
-            )
+            start = text.find("{")
+            end = text.rfind("}")
 
-        try:
-            return json.loads(match.group(0))
+            if start >= 0 and end > start:
 
-        except json.JSONDecodeError as exc:
+                text = text[
+                    start:end + 1
+                ]
 
-            raise ValueError(
-                f"Gemini returned invalid JSON: {exc}"
-            ) from exc
+        return text.strip()
