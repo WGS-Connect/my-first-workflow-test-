@@ -1,306 +1,55 @@
-from __future__ import annotations
-
-import json
-import logging
-import os
-from pathlib import Path
-
-
-log = logging.getLogger("audiobook.config")
-
-
-# ============================================================
-# PROJECT ROOT
-# ============================================================
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-# ============================================================
-# JSON LOADER
-# ============================================================
-
-def load_json(name, default=None):
-    path = ROOT / name
-
-    if not path.exists():
-        log.warning(
-            "Configuration file not found: %s",
-            path
-        )
-        return default if default is not None else {}
-
-    try:
-        raw = path.read_text(
-            encoding="utf-8"
-        ).strip()
-
-    except Exception as exc:
-        raise RuntimeError(
-            f"Unable to read configuration file: {path}"
-        ) from exc
-
-    # Empty config is treated as an empty object.
-    if not raw:
-        log.warning(
-            "Configuration file is empty: %s",
-            path
-        )
-        return default if default is not None else {}
-
-    try:
-        data = json.loads(raw)
-
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Invalid JSON in {path} "
-            f"at line {exc.lineno}, column {exc.colno}: "
-            f"{exc.msg}"
-        ) from exc
-
-    if data is None:
-        return default if default is not None else {}
-
-    if not isinstance(data, dict):
-        raise RuntimeError(
-            f"{path} must contain a JSON object."
-        )
-
-    return data
-
-
-# ============================================================
-# DEFAULT CONFIGURATION
-# ============================================================
-
-DEFAULT_CONFIG = {
-    "video_resolution": "1280x720",
-    "video_fps": 24,
-
-    "video_preset": "veryfast",
-    "video_crf": 23,
-
-    "audio_bitrate": "192k",
-
-    "narration_volume": 1.0,
-    "music_volume": 0.08,
-
-    "cover": {
-        "enabled": True,
-        "width": 260,
-        "height": -1,
-        "x": 40,
-        "y": 40
-    },
-
-    "tts": {
-        "provider": "edge_tts"
-    },
-
-    "language": "en-US",
-
-    "speed": 1.0,
-    "pitch": 0,
-
-    "edge_tts": {
-        "voice": "en-US-GuyNeural"
-    },
-
-    "kokoro": {
-        "voice": "af_heart",
-        "speed": 1.0
-    }
+{
+  "timezone": "UTC",
+  "retry_count": 3,
+  "retry_delay_min": 5,
+  "retry_delay_max": 30,
+  "drive_root": "AUDIOBOOK_AUTOMATION",
+  "input_assets": {
+    "drive_path": "INPUT_ASSETS",
+    "covers_folder": "covers",
+    "music_folder": "music"
+  },
+  "video_library": {
+    "drive_path": "VIDEO_LIBRARY",
+    "random_folder": true,
+    "random_clip_order": true,
+    "allow_clip_duplication": true
+  },
+  "models": {
+    "script": ["gemini-2.5-flash"],
+    "metadata": ["gemini-2.5-flash"]
+  },
+  "script_minutes_min": 60,
+  "script_minutes_max": 90,
+  "words_per_minute_min": 120,
+  "words_per_minute_max": 150,
+  "video_resolution": "1280x720",
+  "video_fps": 24,
+  "video_preset": "veryfast",
+  "video_crf": 23,
+  "audio_bitrate": "192k",
+  "narration_volume": 1.0,
+  "music_volume": 0.08,
+  "require_music": false,
+  "allow_provider_switch_within_book": true,
+  "archive_success_files": false,
+  "youtube_privacy": "private",
+  "disk_free_min_gb": 3,
+  "cover": {
+    "enabled": true,
+    "width": 260,
+    "height": -1,
+    "x": 40,
+    "y": 40
+  },
+  "thumbnail": {
+    "cover_width": 420,
+    "cover_height": -1,
+    "cover_x": 40,
+    "cover_y": 40,
+    "hook_font_size": 64,
+    "hook_x": 700,
+    "hook_y": 150,
+    "hook_width": 520
+  }
 }
-
-
-# ============================================================
-# LOAD USER CONFIGURATION
-# ============================================================
-
-_loaded_config = load_json(
-    "config.json",
-    {}
-)
-
-
-# Merge top-level defaults without destroying
-# user-supplied configuration.
-
-CONFIG = dict(
-    DEFAULT_CONFIG
-)
-
-CONFIG.update(
-    _loaded_config
-)
-
-
-# Preserve nested defaults when the user provides
-# only some nested values.
-
-for section in (
-    "cover",
-    "tts",
-    "edge_tts",
-    "kokoro"
-):
-
-    default_section = (
-        DEFAULT_CONFIG.get(
-            section,
-            {}
-        )
-    )
-
-    user_section = (
-        _loaded_config.get(
-            section,
-            {}
-        )
-    )
-
-    if (
-        isinstance(
-            default_section,
-            dict
-        )
-        and isinstance(
-            user_section,
-            dict
-        )
-    ):
-
-        merged = dict(
-            default_section
-        )
-
-        merged.update(
-            user_section
-        )
-
-        CONFIG[section] = merged
-
-
-# ============================================================
-# VOICE CONFIGURATION
-# ============================================================
-
-VOICE = dict(
-    CONFIG
-)
-
-
-# Some parts of the application expect these
-# voice settings at the top level.
-
-VOICE["speed"] = float(
-    CONFIG.get(
-        "speed",
-        1.0
-    )
-)
-
-VOICE["pitch"] = float(
-    CONFIG.get(
-        "pitch",
-        0
-    )
-)
-
-VOICE["language"] = CONFIG.get(
-    "language",
-    "en-US"
-)
-
-VOICE["edge_tts"] = dict(
-    CONFIG.get(
-        "edge_tts",
-        {}
-    )
-)
-
-VOICE["kokoro"] = dict(
-    CONFIG.get(
-        "kokoro",
-        {}
-    )
-)
-
-
-# ============================================================
-# ENVIRONMENT / SECRETS
-# ============================================================
-
-def _env(name):
-    value = os.getenv(
-        name
-    )
-
-    if value is None:
-        return ""
-
-    return value.strip()
-
-
-def secret_config():
-    """
-    Return secrets supplied through GitHub Actions
-    environment variables.
-
-    Secrets are intentionally NOT stored in config.json.
-    """
-
-    return {
-        "GEMINI_API_KEY": _env(
-            "GEMINI_API_KEY"
-        ),
-
-        "YOUTUBE_CLIENT_ID": _env(
-            "YOUTUBE_CLIENT_ID"
-        ),
-
-        "YOUTUBE_CLIENT_SECRET": _env(
-            "YOUTUBE_CLIENT_SECRET"
-        ),
-
-        "YOUTUBE_REFRESH_TOKEN": _env(
-            "YOUTUBE_REFRESH_TOKEN"
-        ),
-
-        "GOOGLE_SERVICE_ACCOUNT_JSON": _env(
-            "GOOGLE_SERVICE_ACCOUNT_JSON"
-        ),
-
-        "YOUTUBE_TOKEN_JSON_BOOKS": _env(
-            "YOUTUBE_TOKEN_JSON_BOOKS"
-        )
-    }
-
-
-# ============================================================
-# OPTIONAL DRIVE ROOT
-# ============================================================
-
-DRIVE_ROOT = CONFIG.get(
-    "drive_root",
-    "Audiobook"
-)
-
-
-# ============================================================
-# STARTUP INFORMATION
-# ============================================================
-
-log.info(
-    "Configuration loaded successfully."
-)
-
-log.info(
-    "Project root: %s",
-    ROOT
-)
-
-log.info(
-    "Drive root: %s",
-    DRIVE_ROOT
-)
