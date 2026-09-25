@@ -1,55 +1,96 @@
-{
-  "timezone": "UTC",
-  "retry_count": 3,
-  "retry_delay_min": 5,
-  "retry_delay_max": 30,
-  "drive_root": "AUDIOBOOK_AUTOMATION",
-  "input_assets": {
-    "drive_path": "INPUT_ASSETS",
-    "covers_folder": "covers",
-    "music_folder": "music"
-  },
-  "video_library": {
-    "drive_path": "VIDEO_LIBRARY",
-    "random_folder": true,
-    "random_clip_order": true,
-    "allow_clip_duplication": true
-  },
-  "models": {
-    "script": ["gemini-2.5-flash"],
-    "metadata": ["gemini-2.5-flash"]
-  },
-  "script_minutes_min": 60,
-  "script_minutes_max": 90,
-  "words_per_minute_min": 120,
-  "words_per_minute_max": 150,
-  "video_resolution": "1280x720",
-  "video_fps": 24,
-  "video_preset": "veryfast",
-  "video_crf": 23,
-  "audio_bitrate": "192k",
-  "narration_volume": 1.0,
-  "music_volume": 0.08,
-  "require_music": false,
-  "allow_provider_switch_within_book": true,
-  "archive_success_files": false,
-  "youtube_privacy": "private",
-  "disk_free_min_gb": 3,
-  "cover": {
-    "enabled": true,
-    "width": 260,
-    "height": -1,
-    "x": 40,
-    "y": 40
-  },
-  "thumbnail": {
-    "cover_width": 420,
-    "cover_height": -1,
-    "cover_x": 40,
-    "cover_y": 40,
-    "hook_font_size": 64,
-    "hook_x": 700,
-    "hook_y": 150,
-    "hook_width": 520
-  }
-}
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_json(name, default=None):
+    path = ROOT / name
+
+    if not path.exists():
+        return {} if default is None else default
+
+    text = path.read_text(
+        encoding="utf-8"
+    ).strip()
+
+    if not text:
+        return {} if default is None else default
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {} if default is None else default
+
+
+CONFIG = load_json(
+    "config.json",
+    {}
+)
+
+
+VOICE = load_json(
+    "voice.json",
+    {}
+)
+
+
+def secret_config():
+    """
+    Read secrets from GitHub Actions environment variables.
+
+    Google Drive now uses OAuth user credentials.
+    """
+
+    drive_oauth = os.environ.get(
+        "GOOGLE_DRIVE_OAUTH_JSON",
+        ""
+    ).strip()
+
+    # Backward compatibility:
+    # allow the old variable temporarily if the new
+    # OAuth secret has not been configured.
+    if not drive_oauth:
+        drive_oauth = os.environ.get(
+            "GOOGLE_DRIVE_CREDENTIALS",
+            ""
+        ).strip()
+
+    if not drive_oauth:
+        raise RuntimeError(
+            "GOOGLE_DRIVE_OAUTH_JSON GitHub Secret "
+            "is missing."
+        )
+
+    return {
+        "google_drive_credentials": drive_oauth,
+
+        "gemini_api_key": os.environ.get(
+            "GEMINI_API_KEY",
+            ""
+        ).strip(),
+
+        "youtube_client_id": os.environ.get(
+            "YOUTUBE_CLIENT_ID",
+            ""
+        ).strip(),
+
+        "youtube_client_secret": os.environ.get(
+            "YOUTUBE_CLIENT_SECRET",
+            ""
+        ).strip(),
+
+        "youtube_refresh_token": os.environ.get(
+            "YOUTUBE_REFRESH_TOKEN",
+            ""
+        ).strip(),
+    }
+
+
+# Keep these names available to the rest of
+# the existing application.
+SECRETS = secret_config()
